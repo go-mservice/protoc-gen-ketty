@@ -109,7 +109,7 @@ func (g *ketty) Generate(file *generator.FileDescriptor) {
 	println("ketty.Generate")
 
 	g.P("// Reference imports to suppress errors if they are not otherwise used.")
-	g.P("var _ ", kettyPkg, ".AopList")
+	g.P("var _ ", kettyPkg, ".Dummy")
 	g.P()
 
 	// Assert version compatibility.
