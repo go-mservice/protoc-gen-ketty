@@ -39,10 +39,15 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"github.com/yyzybb537/ketty/log"
+	"github.com/golang/protobuf/proto"
 
 	pb "github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/golang/protobuf/protoc-gen-go/generator"
+	kettyProto "github.com/yyzybb537/protoc-gen-ketty/include"
 )
+
+var _ = log.GetLog
 
 // generatedCodeVersion indicates a version of the generated code.
 // It is incremented whenever an incompatibility between the generated code and
@@ -121,6 +126,49 @@ func (g *ketty) Generate(file *generator.FileDescriptor) {
 	for i, service := range file.FileDescriptorProto.Service {
 		g.generateService(file, service, i)
 	}
+
+	for _, message := range file.FileDescriptorProto.MessageType {
+		println("------ message ", *message.Name)
+		//println(log.LogFormat(message, log.Indent))
+		if message.Options == nil {
+			continue
+        }
+
+		opts := getKettyOptions(message)
+		println(log.LogFormat(opts, log.Indent))
+    }
+}
+
+type kettyOptions struct {
+	isUseKettyHttpExtend bool
+	transport string
+	marshal string
+}
+
+func getKettyOptions(message *pb.DescriptorProto) (opts *kettyOptions) {
+	opts = &kettyOptions{}
+	iisUseKettyHttpExtend, err := proto.GetExtension(message.Options, kettyProto.E_UseKettyHttpExtend)
+	if err == nil {
+		if iisUseKettyHttpExtend.(*bool) != nil {
+			opts.isUseKettyHttpExtend = *iisUseKettyHttpExtend.(*bool)
+		}
+	}
+
+	iTransport, err := proto.GetExtension(message.Options, kettyProto.E_Transport)
+	if err == nil {
+		if iTransport.(*string) != nil {
+			opts.transport = *iTransport.(*string)
+        }
+	}
+
+	iMarshal, err := proto.GetExtension(message.Options, kettyProto.E_Marshal)
+	if err == nil {
+		if iMarshal.(*string) != nil {
+			opts.marshal = *iMarshal.(*string)
+        }
+	}
+
+	return
 }
 
 // GenerateImports generates the import declaration for this file.
@@ -237,109 +285,4 @@ func (g *ketty) generateClientMethod(servName, fullServName, serviceDescVar stri
 	return
 }
 
-// generateServerSignature returns the server-side signature for a method.
-func (g *ketty) generateServerSignature(servName string, method *pb.MethodDescriptorProto) string {
-	origMethName := method.GetName()
-	methName := generator.CamelCase(origMethName)
-	if reservedClientName[methName] {
-		methName += "_"
-	}
 
-	var reqArgs []string
-	ret := "error"
-	if !method.GetServerStreaming() && !method.GetClientStreaming() {
-		reqArgs = append(reqArgs, contextPkg+".Context")
-		ret = "(*" + g.typeName(method.GetOutputType()) + ", error)"
-	}
-	if !method.GetClientStreaming() {
-		reqArgs = append(reqArgs, "*"+g.typeName(method.GetInputType()))
-	}
-	if method.GetServerStreaming() || method.GetClientStreaming() {
-		reqArgs = append(reqArgs, servName+"_"+generator.CamelCase(origMethName)+"Server")
-	}
-
-	return methName + "(" + strings.Join(reqArgs, ", ") + ") " + ret
-}
-
-func (g *ketty) generateServerMethod(servName, fullServName string, method *pb.MethodDescriptorProto) string {
-	methName := generator.CamelCase(method.GetName())
-	hname := fmt.Sprintf("_%s_%s_Handler", servName, methName)
-	inType := g.typeName(method.GetInputType())
-	outType := g.typeName(method.GetOutputType())
-
-	if !method.GetServerStreaming() && !method.GetClientStreaming() {
-		g.P("func ", hname, "(srv interface{}, ctx ", contextPkg, ".Context, dec func(interface{}) error, interceptor ", kettyPkg, ".UnaryServerInterceptor) (interface{}, error) {")
-		g.P("in := new(", inType, ")")
-		g.P("if err := dec(in); err != nil { return nil, err }")
-		g.P("if interceptor == nil { return srv.(", servName, "Server).", methName, "(ctx, in) }")
-		g.P("info := &", kettyPkg, ".UnaryServerInfo{")
-		g.P("Server: srv,")
-		g.P("FullMethod: ", strconv.Quote(fmt.Sprintf("/%s/%s", fullServName, methName)), ",")
-		g.P("}")
-		g.P("handler := func(ctx ", contextPkg, ".Context, req interface{}) (interface{}, error) {")
-		g.P("return srv.(", servName, "Server).", methName, "(ctx, req.(*", inType, "))")
-		g.P("}")
-		g.P("return interceptor(ctx, in, info, handler)")
-		g.P("}")
-		g.P()
-		return hname
-	}
-	streamType := unexport(servName) + methName + "Server"
-	g.P("func ", hname, "(srv interface{}, stream ", kettyPkg, ".ServerStream) error {")
-	if !method.GetClientStreaming() {
-		g.P("m := new(", inType, ")")
-		g.P("if err := stream.RecvMsg(m); err != nil { return err }")
-		g.P("return srv.(", servName, "Server).", methName, "(m, &", streamType, "{stream})")
-	} else {
-		g.P("return srv.(", servName, "Server).", methName, "(&", streamType, "{stream})")
-	}
-	g.P("}")
-	g.P()
-
-	genSend := method.GetServerStreaming()
-	genSendAndClose := !method.GetServerStreaming()
-	genRecv := method.GetClientStreaming()
-
-	// Stream auxiliary types and methods.
-	g.P("type ", servName, "_", methName, "Server interface {")
-	if genSend {
-		g.P("Send(*", outType, ") error")
-	}
-	if genSendAndClose {
-		g.P("SendAndClose(*", outType, ") error")
-	}
-	if genRecv {
-		g.P("Recv() (*", inType, ", error)")
-	}
-	g.P(kettyPkg, ".ServerStream")
-	g.P("}")
-	g.P()
-
-	g.P("type ", streamType, " struct {")
-	g.P(kettyPkg, ".ServerStream")
-	g.P("}")
-	g.P()
-
-	if genSend {
-		g.P("func (x *", streamType, ") Send(m *", outType, ") error {")
-		g.P("return x.ServerStream.SendMsg(m)")
-		g.P("}")
-		g.P()
-	}
-	if genSendAndClose {
-		g.P("func (x *", streamType, ") SendAndClose(m *", outType, ") error {")
-		g.P("return x.ServerStream.SendMsg(m)")
-		g.P("}")
-		g.P()
-	}
-	if genRecv {
-		g.P("func (x *", streamType, ") Recv() (*", inType, ", error) {")
-		g.P("m := new(", inType, ")")
-		g.P("if err := x.ServerStream.RecvMsg(m); err != nil { return nil, err }")
-		g.P("return m, nil")
-		g.P("}")
-		g.P()
-	}
-
-	return hname
-}
