@@ -128,14 +128,14 @@ func (g *ketty) Generate(file *generator.FileDescriptor) {
 	}
 
 	for _, message := range file.FileDescriptorProto.MessageType {
-		println("------ message ", *message.Name)
+		//println("------ message ", *message.Name)
 		//println(log.LogFormat(message, log.Indent))
 		if message.Options == nil {
 			continue
         }
 
 		opts := getKettyOptions(message)
-		println(log.LogFormat(opts, log.Indent))
+		//println(log.LogFormat(opts, log.Indent))
 
 		g.generateOptionMethods(message, opts)
     }
