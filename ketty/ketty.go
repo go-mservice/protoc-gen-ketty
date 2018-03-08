@@ -136,6 +136,8 @@ func (g *ketty) Generate(file *generator.FileDescriptor) {
 
 		opts := getKettyOptions(message)
 		println(log.LogFormat(opts, log.Indent))
+
+		g.generateOptionMethods(message, opts)
     }
 }
 
@@ -169,6 +171,27 @@ func getKettyOptions(message *pb.DescriptorProto) (opts *kettyOptions) {
 	}
 
 	return
+}
+
+func (g *ketty) generateOptionMethods(message *pb.DescriptorProto, opts *kettyOptions) {
+	if opts.isUseKettyHttpExtend {
+		g.P("func (*", message.Name, ") KettyHttpExtendMessage() {}")
+		g.P()
+    }
+
+	if opts.marshal != "" {
+		g.P("func (*", message.Name, ") KettyMarshal() string {")
+		g.P("return \"", opts.marshal, "\"")
+		g.P("}")
+		g.P()
+    }
+
+	if opts.transport != "" {
+		g.P("func (*", message.Name, ") KettyTransport() string {")
+		g.P("return \"", opts.transport, "\"")
+		g.P("}")
+		g.P()
+    }
 }
 
 // GenerateImports generates the import declaration for this file.
