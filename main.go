@@ -53,7 +53,7 @@ import (
 	"os"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/protoc-gen-go/generator"
+	"github.com/yyzybb537/protoc-gen-ketty/generator"
 )
 
 func main() {

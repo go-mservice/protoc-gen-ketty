@@ -43,7 +43,7 @@ import (
 	"github.com/golang/protobuf/proto"
 
 	pb "github.com/golang/protobuf/protoc-gen-go/descriptor"
-	"github.com/golang/protobuf/protoc-gen-go/generator"
+	"github.com/yyzybb537/protoc-gen-ketty/generator"
 	kettyProto "github.com/yyzybb537/protoc-gen-ketty/include"
 )
 
@@ -88,7 +88,8 @@ var (
 func (g *ketty) Init(gen *generator.Generator) {
 	g.gen = gen
 	contextPkg = "context"
-	kettyPkg = generator.RegisterUniquePackageName("ketty", nil)
+	//kettyPkg = generator.RegisterUniquePackageName("ketty", nil)
+	kettyPkg = "ketty"
 }
 
 // Given a type name defined in a .proto, return its object.
