@@ -157,6 +157,13 @@ func getKettyOptions(message *pb.DescriptorProto) (opts *kettyOptions) {
 		}
 	}
 
+	iMultiTransport, err := proto.GetExtension(message.Options, kettyProto.E_MultiTransport)
+	if err == nil {
+		if iMultiTransport.(*bool) != nil {
+			opts.isUseKettyHttpExtend = opts.isUseKettyHttpExtend || *iMultiTransport.(*bool)
+        }
+	}
+
 	iTransport, err := proto.GetExtension(message.Options, kettyProto.E_Transport)
 	if err == nil {
 		if iTransport.(*string) != nil {

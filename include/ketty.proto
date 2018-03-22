@@ -4,6 +4,7 @@ import "google/protobuf/descriptor.proto";
 
 extend google.protobuf.MessageOptions {
   bool use_ketty_http_extend = 10001;
+  bool multi_transport = 10004; // 兼容, 等同于use_ketty_http_extend
   string marshal = 10002;
   string transport = 10003;
 }
