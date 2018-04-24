@@ -8,3 +8,11 @@ extend google.protobuf.MessageOptions {
   string marshal = 10002;
   string transport = 10003;
 }
+
+extend google.protobuf.FileOptions {
+  bool json_allow_omitempty_repeated = 20001;
+}
+
+extend google.protobuf.FieldOptions {
+  bool json_allow_omitempty = 30001;
+}

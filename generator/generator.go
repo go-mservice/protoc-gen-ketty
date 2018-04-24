@@ -56,6 +56,7 @@ import (
 
 	"github.com/golang/protobuf/protoc-gen-go/descriptor"
 	plugin "github.com/golang/protobuf/protoc-gen-go/plugin"
+	kettyProto "github.com/yyzybb537/protoc-gen-ketty/include"
 )
 
 // generatedCodeVersion indicates a version of the generated code.
@@ -1773,6 +1774,23 @@ func (g *Generator) generateMessage(message *Descriptor) {
 			return ns
 		}
 	}
+	
+	// 2018-04-24 @yyz Extract file descriptor custom options
+	var kettyFileOptions struct {
+		json struct {
+			allow_omitempty_repeated bool
+		} 
+	} 
+
+	fileOpt := message.File().Options
+	if fileOpt != nil {
+		i_allow_omitempty_repeated, err := proto.GetExtension(fileOpt, kettyProto.E_JsonAllowOmitemptyRepeated)
+		if err == nil {
+			if i_allow_omitempty_repeated.(*bool) != nil {
+				kettyFileOptions.json.allow_omitempty_repeated = *i_allow_omitempty_repeated.(*bool)
+			}
+		}
+	}
 
 	for i, field := range message.Field {
 		// Allocate the getter and the field at the same time so name
@@ -1785,8 +1803,29 @@ func (g *Generator) generateMessage(message *Descriptor) {
 		fieldName, fieldGetterName := ns[0], ns[1]
 		typename, wiretype := g.GoType(message, field)
 		jsonName := *field.Name
-		tag := fmt.Sprintf("protobuf:%s json:%q", g.goTag(message, field, wiretype), jsonName)
-//		tag := fmt.Sprintf("protobuf:%s json:%q", g.goTag(message, field, wiretype), jsonName+",omitempty")
+
+		var kettyFieldOptions struct {
+			json struct {
+				allow_omitempty bool
+			}
+		}
+		if field.Options != nil {
+			i_allow_omitempty, err := proto.GetExtension(field.Options, kettyProto.E_JsonAllowOmitempty)
+			if err == nil {
+				if i_allow_omitempty.(*bool) != nil {
+					kettyFieldOptions.json.allow_omitempty = *i_allow_omitempty.(*bool)
+				}
+			}
+		}
+
+		var tag string
+		if kettyFieldOptions.json.allow_omitempty { 
+			tag = fmt.Sprintf("protobuf:%s json:%q", g.goTag(message, field, wiretype), jsonName+",omitempty")
+		} else if isRepeated(field) && kettyFileOptions.json.allow_omitempty_repeated {
+			tag = fmt.Sprintf("protobuf:%s json:%q", g.goTag(message, field, wiretype), jsonName+",omitempty")
+		} else {
+			tag = fmt.Sprintf("protobuf:%s json:%q", g.goTag(message, field, wiretype), jsonName)
+		}
 
 		fieldNames[field] = fieldName
 		fieldGetterNames[field] = fieldGetterName
