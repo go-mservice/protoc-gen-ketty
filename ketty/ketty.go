@@ -35,6 +35,7 @@
 package ketty
 
 import (
+	"os"
 	"fmt"
 	"path"
 	"strconv"
@@ -146,6 +147,7 @@ type kettyOptions struct {
 	isUseKettyHttpExtend bool
 	transport string
 	marshal string
+	jsonHyaline bool
 }
 
 func getKettyOptions(message *pb.DescriptorProto) (opts *kettyOptions) {
@@ -178,25 +180,49 @@ func getKettyOptions(message *pb.DescriptorProto) (opts *kettyOptions) {
         }
 	}
 
+	iJsonHyaline, err := proto.GetExtension(message.Options, kettyProto.E_JsonHyaline)
+	if err == nil {
+		if iJsonHyaline.(*bool) != nil {
+			opts.jsonHyaline = *iJsonHyaline.(*bool)
+        }
+	}
+
 	return
 }
 
 func (g *ketty) generateOptionMethods(message *pb.DescriptorProto, opts *kettyOptions) {
 	if opts.isUseKettyHttpExtend {
-		g.P("func (*", message.Name, ") KettyHttpExtendMessage() {}")
+		g.P("func (*", generator.CamelCase(message.GetName()), ") KettyHttpExtendMessage() {}")
 		g.P()
     }
 
 	if opts.marshal != "" {
-		g.P("func (*", message.Name, ") KettyMarshal() string {")
+		g.P("func (*", generator.CamelCase(message.GetName()), ") KettyMarshal() string {")
 		g.P("return \"", opts.marshal, "\"")
 		g.P("}")
 		g.P()
     }
 
 	if opts.transport != "" {
-		g.P("func (*", message.Name, ") KettyTransport() string {")
+		g.P("func (*", generator.CamelCase(message.GetName()), ") KettyTransport() string {")
 		g.P("return \"", opts.transport, "\"")
+		g.P("}")
+		g.P()
+    }
+
+	if opts.jsonHyaline {
+		if message.GetField() == nil || len(message.GetField()) != 1 {
+			println("Error: message(" + message.GetName() + ") use option(json_hyaline) but it has not only 1 field.")
+			os.Exit(1)
+		}
+
+		g.P("func (this *", generator.CamelCase(message.GetName()), ") MarshalJSON() ([]byte, error) {")
+		g.P("return json.Marshal(this.", generator.CamelCase(message.Field[0].GetName()), ")")
+		g.P("}")
+		g.P()
+
+		g.P("func (this *", generator.CamelCase(message.GetName()), ") UnmarshalJSON(data []byte) (err error) {")
+		g.P("return json.Unmarshal(data, &this.", generator.CamelCase(message.Field[0].GetName()), ")")
 		g.P("}")
 		g.P()
     }
@@ -209,6 +235,7 @@ func (g *ketty) GenerateImports(file *generator.FileDescriptor) {
 	}
 	g.P("import (")
 	g.P(kettyPkg, " ", strconv.Quote(path.Join(g.gen.ImportPrefix, kettyPkgPath)))
+	g.P("\"encoding/json\"")
 	g.P(")")
 	g.P()
 }

@@ -7,6 +7,7 @@ extend google.protobuf.MessageOptions {
   bool multi_transport = 10004; // 兼容, 等同于use_ketty_http_extend
   string marshal = 10002;
   string transport = 10003;
+  bool json_hyaline = 10005; // json生成的格式不会有message这一层,直接就是里面的第一个field
 }
 
 extend google.protobuf.FileOptions {
